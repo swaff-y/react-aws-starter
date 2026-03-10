@@ -1,4 +1,4 @@
-# Pheonix
+# React AWS Starter
 
 React + Bootstrap web application deployed via Buildkite CI/CD to AWS (S3 + CloudFront).
 
