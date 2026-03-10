@@ -1,0 +1,82 @@
+steps:
+  - label: ':hammer: Run tests'
+    command: 'scripts/run_tests.sh'
+    agents:
+      queue: default
+
+  - wait: ~
+    continue_on_failure: false
+
+  - label: ':package: Build and Package'
+    command: 'scripts/build_and_package.sh'
+    agents:
+      queue: default
+    env:
+      AWS_PROFILE: 'dev'
+      REGION: 'ap-southeast-2'
+      SLICE: '${BUILDKITE_BRANCH}'
+      STAGE: 'dev'
+    artifact_paths:
+      - 'serverless-dev.yml'
+      - 'pheonix-dev.zip'
+      - 'build.log'
+
+  - label: ':package: Build and Package for prod'
+    branches: 'main'
+    command: 'scripts/build_and_package.sh'
+    agents:
+      queue: default
+    env:
+      AWS_PROFILE: 'prod'
+      REGION: 'ap-southeast-2'
+      SLICE: '${BUILDKITE_BRANCH}'
+      STAGE: 'prod'
+    artifact_paths:
+      - 'serverless-prod.yml'
+      - 'pheonix-prod.zip'
+
+  - wait: ~
+    continue_on_failure: false
+
+  - label: ':computer: Deploy'
+    command: 'scripts/deploy.sh'
+    agents:
+      queue: default
+    env:
+      AWS_PROFILE: 'dev'
+      REGION: 'ap-southeast-2'
+      SLICE: '${BUILDKITE_BRANCH}'
+      STAGE: 'dev'
+    artifact_paths:
+      - 'deploy_result'
+
+  - label: ':computer: Deploy to prod'
+    branches: 'main'
+    command: 'scripts/deploy.sh'
+    agents:
+      queue: default
+    env:
+      AWS_PROFILE: 'prod'
+      REGION: 'ap-southeast-2'
+      SLICE: '${BUILDKITE_BRANCH}'
+      STAGE: 'prod'
+    artifact_paths:
+      - 'deploy_result'
+
+  - wait: ~
+    continue_on_failure: true
+    branches: '!main'
+
+  - block: ':bomb: Remove Stack'
+    branches: '!main'
+
+  - name: ':gun: Removing stack'
+    branches: '!main'
+    command: 'scripts/remove.sh'
+    agents:
+      queue: default
+    env:
+      AWS_PROFILE: 'dev'
+      REGION: 'ap-southeast-2'
+      SLICE: '${BUILDKITE_BRANCH}'
+      STAGE: 'dev'

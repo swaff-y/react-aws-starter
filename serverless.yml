@@ -1,0 +1,92 @@
+service: pheonix
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  profile: dev
+  region: ap-southeast-2
+
+plugins:
+  - serverless-s3-sync
+
+custom:
+  bucketName: pheonix
+  s3Sync:
+    - bucketName: ${self:custom.bucketName}
+      localDir: dist/
+      default: true
+
+resources:
+  Resources:
+    PheonixBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucketName}
+        OwnershipControls:
+          Rules:
+            - ObjectOwnership: BucketOwnerEnforced
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+          BlockPublicPolicy: false
+          IgnorePublicAcls: false
+          RestrictPublicBuckets: false
+        WebsiteConfiguration:
+          IndexDocument: index.html
+          ErrorDocument: index.html
+    S3AccessPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: PheonixBucket
+        PolicyDocument:
+          Statement:
+            - Sid: PublicReadGetObject
+              Effect: Allow
+              Principal: '*'
+              Action:
+                - s3:GetObject
+              Resource: arn:aws:s3:::${self:custom.bucketName}/*
+    CloudFrontDistribution:
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          Comment: ${self:custom.bucketName}
+          Origins:
+            - DomainName: ${self:custom.bucketName}.s3-website.${self:provider.region}.amazonaws.com
+              Id: Pheonix
+              CustomOriginConfig:
+                HTTPPort: 80
+                HTTPSPort: 443
+                OriginProtocolPolicy: http-only
+          Enabled: 'true'
+          DefaultRootObject: index.html
+          CustomErrorResponses:
+            - ErrorCode: 404
+              ResponseCode: 200
+              ResponsePagePath: /index.html
+          DefaultCacheBehavior:
+            AllowedMethods:
+              - DELETE
+              - GET
+              - HEAD
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            TargetOriginId: Pheonix
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            ViewerProtocolPolicy: redirect-to-https
+          ViewerCertificate:
+            CloudFrontDefaultCertificate: true
+
+  Outputs:
+    CloudFrontDistributionId:
+      Value:
+        Ref: CloudFrontDistribution
+      Description: CloudFront Distribution ID for cache invalidation
+    CloudFrontDomainName:
+      Value:
+        Fn::GetAtt:
+          - CloudFrontDistribution
+          - DomainName
+      Description: CloudFront domain name
